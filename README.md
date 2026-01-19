@@ -17,7 +17,30 @@ npx nx <target> <project-name>
 For example:
 
 ```sh
-npx nx build myproject
+npx nx build api
+```
+
+### Quick commands
+
+```sh
+# Build
+npx nx build api
+
+# Serve
+npx nx serve api
+
+# Lint
+npx nx lint api
+
+# E2E
+npx nx e2e api-e2e
+```
+
+### Single test
+
+```sh
+npx nx e2e api-e2e --testPathPattern=api-e2e/src/api/api.spec.ts
+npx nx e2e api-e2e --testNamePattern="should return a message"
 ```
 
 These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.

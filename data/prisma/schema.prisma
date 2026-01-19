@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RideVisibility {
+  OPEN
+  FRIENDS
+  PREVIOUS_RIDERS
+  REQUEST_TO_JOIN
+  PRIVATE
+}
+
+enum RideStatus {
+  ACTIVE
+  ENDED
+}
+
+enum RideRole {
+  HOST
+  MEMBER
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+model User {
+  id              String        @id @default(uuid())
+  screenName      String?       @unique
+  email           String?       @unique
+  phoneNumber     String?       @unique
+  passwordHash    String?
+  authProviders   String[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  settings        UserSettings?
+  ridesHosted     Ride[]        @relation("RideHost")
+  rideMembers     RideMember[]
+  positions       Position[]
+  waypoints       Waypoint[]     @relation("WaypointCreator")
+  friendEdges     FriendEdge[]  @relation("FriendUser")
+  friendOf        FriendEdge[]  @relation("FriendTarget")
+  coRiders        CoRider[]     @relation("CoRiderUser")
+  coRiderOf       CoRider[]     @relation("CoRiderTarget")
+  voiceMetrics    VoiceMetric[]
+}
+
+model UserSettings {
+  id                    String  @id @default(uuid())
+  userId                String  @unique
+  showRideStatus        Boolean @default(true)
+  notifyFriendsRiding   Boolean @default(true)
+  notifyProximityRides  Boolean @default(true)
+  allowAutoJoinStopped  Boolean @default(false)
+  user                  User    @relation(fields: [userId], references: [id])
+}
+
+model Ride {
+  id          String         @id @default(uuid())
+  code        String         @unique
+  hostId      String
+  visibility  RideVisibility @default(PRIVATE)
+  status      RideStatus     @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  endedAt     DateTime?
+  host        User           @relation("RideHost", fields: [hostId], references: [id])
+  members     RideMember[]
+  positions   Position[]
+  waypoints   Waypoint[]
+  voiceMetrics VoiceMetric[]
+
+  @@index([hostId])
+  @@index([status])
+}
+
+model RideMember {
+  id        String   @id @default(uuid())
+  rideId    String
+  userId    String
+  role      RideRole @default(MEMBER)
+  muted     Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+  ride      Ride     @relation(fields: [rideId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([rideId, userId])
+  @@index([userId])
+}
+
+model Position {
+  id        String   @id @default(uuid())
+  rideId    String
+  userId    String
+  ts        DateTime
+  latitude  Float
+  longitude Float
+  speed     Float?
+  heading   Float?
+  accuracy  Float?
+  ride      Ride     @relation(fields: [rideId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([rideId, ts])
+  @@index([userId, ts])
+}
+
+model Waypoint {
+  id        String   @id @default(uuid())
+  rideId    String
+  creatorId String
+  ts        DateTime @default(now())
+  latitude  Float
+  longitude Float
+  label     String?
+  type      String?
+  ride      Ride     @relation(fields: [rideId], references: [id])
+  creator   User     @relation("WaypointCreator", fields: [creatorId], references: [id])
+
+  @@index([rideId, ts])
+}
+
+model GuestUsage {
+  id             String   @id @default(uuid())
+  deviceId       String
+  installId      String
+  rideCount      Int      @default(0)
+  windowStart    DateTime
+  cooldownUntil  DateTime?
+  lastRideAt     DateTime?
+  lastRideId     String?
+
+  @@unique([deviceId, installId])
+  @@index([deviceId])
+}
+
+model FriendEdge {
+  id           String       @id @default(uuid())
+  userId       String
+  friendId     String
+  status       FriendStatus @default(PENDING)
+  muted        Boolean      @default(false)
+  notifyRiding Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  user         User         @relation("FriendUser", fields: [userId], references: [id])
+  friend       User         @relation("FriendTarget", fields: [friendId], references: [id])
+
+  @@unique([userId, friendId])
+}
+
+model CoRider {
+  id          String   @id @default(uuid())
+  userId      String
+  otherUserId String
+  lastRideAt  DateTime
+  user        User     @relation("CoRiderUser", fields: [userId], references: [id])
+  otherUser   User     @relation("CoRiderTarget", fields: [otherUserId], references: [id])
+
+  @@unique([userId, otherUserId])
+}
+
+model VoiceMetric {
+  id         String   @id @default(uuid())
+  rideId     String
+  userId     String
+  ts         DateTime @default(now())
+  rttMs      Int?
+  jitterMs   Int?
+  packetLoss Float?
+  bitrateKbps Int?
+  reconnectCount Int?
+  ride       Ride     @relation(fields: [rideId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([rideId, ts])
+  @@index([userId, ts])
+}

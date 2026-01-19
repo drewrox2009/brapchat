@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../dist/out-tsc/data",
+    "rootDir": ".",
+    "module": "commonjs",
+    "target": "es2021",
+    "declaration": true,
+    "composite": true
+  },
+  "include": ["src/**/*.ts"]
+}
