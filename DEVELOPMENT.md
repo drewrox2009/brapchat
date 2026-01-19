@@ -49,7 +49,7 @@ Environment variables:
 
 ### Postgres
 
-You can reuse the `docker-compose.yml` Postgres service or point to Supabase Postgres.
+Point the API at your managed Supabase Postgres database using `DATABASE_URL`.
 
 ### LiveKit + TURN
 

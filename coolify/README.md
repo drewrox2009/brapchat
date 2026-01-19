@@ -5,7 +5,7 @@
 - Use the root `Dockerfile` to build the Nest API service.
 - Expose port `3000`.
 - Environment variables:
-  - `DATABASE_URL`
+  - `DATABASE_URL` (Supabase managed Postgres)
   - `SUPABASE_URL`
   - `SUPABASE_ANON_KEY`
   - `JWT_SECRET`
