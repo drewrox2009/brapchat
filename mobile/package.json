@@ -33,7 +33,10 @@
     "@nx/rollup": "*",
     "expo-linear-gradient": "*",
     "@expo-google-fonts/space-grotesk": "*",
-    "expo-font": "*"
+    "expo-font": "*",
+    "@supabase/supabase-js": "*",
+    "expo-secure-store": "*",
+    "expo-location": "*"
   },
   "devDependencies": {}
 }

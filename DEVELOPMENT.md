@@ -62,6 +62,9 @@ Set up LiveKit and TURN as separate services on Coolify. If you want, I can add 
 3) Add visibility rules (friends-only, previous riders, request-to-join) in ride joins.
 4) Add a "Who’s Riding" endpoint that includes host + friends in ride.
 5) Add host-only kick and mute flows (already stubbed at the service layer).
+6) Add ride code lookup endpoint so mobile can join by code.
+7) Add location updates + map view in mobile.
+8) Add LiveKit token issuance for voice join.
 
 ## Development notes
 
