@@ -14,8 +14,9 @@ This runbook covers deploying Supabase, the API, and LiveKit using Coolify.
 2. In the Supabase project settings, copy:
    - `SUPABASE_URL`
    - `SUPABASE_ANON_KEY`
-   - Postgres connection string (use as `DATABASE_URL`)
-3. Make sure your Supabase database allows connections from your Coolify host (if IP allowlisting is enabled).
+   - Postgres connection string (use as `DATABASE_URL`). Make sure it includes `?sslmode=require`.
+3. If you use the Supabase pooler, append `?pgbouncer=true&sslmode=require` instead.
+4. Make sure your Supabase database allows connections from your Coolify host (if IP allowlisting is enabled).
 
 ## 2) API service (Coolify)
 

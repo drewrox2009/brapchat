@@ -49,7 +49,8 @@ Environment variables:
 
 ### Postgres
 
-Point the API at your managed Supabase Postgres database using `DATABASE_URL`.
+Point the API at your managed Supabase Postgres database using `DATABASE_URL` and include `?sslmode=require`.
+If you use the Supabase pooler, add `?pgbouncer=true&sslmode=require`.
 
 ### LiveKit + TURN
 
