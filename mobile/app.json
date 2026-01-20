@@ -1,26 +1,46 @@
 {
   "expo": {
-    "name": "Mobile",
-    "slug": "mobile",
+    "name": "BrapChat",
+    "slug": "brapchat",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "scheme": "brapchat",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.brapchat.app",
+      "associatedDomains": ["applinks:brapchat.app"]
     },
     "android": {
+      "package": "com.brapchat.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "brapchat.app",
+              "pathPrefix": "/ride"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
       "favicon": "./assets/images/favicon.png"
+    },
+    "extra": {
+      "deepLinkDomain": "brapchat.app"
     },
     "plugins": [
       [
@@ -30,6 +50,17 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "ios": {
+            "apiKey": ""
+          },
+          "android": {
+            "apiKey": "AIzaSyAq4IVYs2r2tAxvr1LtOlzKAddvOx3pC6E"
+          }
         }
       ]
     ]

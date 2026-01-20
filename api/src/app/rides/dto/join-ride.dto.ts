@@ -1,6 +1,7 @@
-import { IsString } from 'class-validator';
+import { IsString, MinLength } from 'class-validator';
 
 export class JoinRideDto {
   @IsString()
-  rideId: string;
+  @MinLength(4)
+  code: string;
 }

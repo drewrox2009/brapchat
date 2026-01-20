@@ -19,9 +19,11 @@ export class RidesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createRide(userId: string, dto: CreateRideDto): Promise<RideWithMembers> {
+    const code = dto.code.trim().toUpperCase();
+
     return this.prisma.ride.create({
       data: {
-        code: dto.code,
+        code,
         hostId: userId,
         visibility: dto.visibility,
         members: {
@@ -38,8 +40,9 @@ export class RidesService {
   }
 
   async joinRide(userId: string, dto: JoinRideDto): Promise<RideWithMembers> {
+    const code = dto.code.trim().toUpperCase();
     const ride = await this.prisma.ride.findUnique({
-      where: { id: dto.rideId },
+      where: { code },
       include: { members: true },
     });
 
@@ -50,6 +53,10 @@ export class RidesService {
     const existing = ride.members.find((member) => member.userId === userId);
     if (existing) {
       return ride;
+    }
+
+    if (ride.visibility !== 'OPEN') {
+      throw new BadRequestException('Ride is not open to join');
     }
 
     return this.prisma.ride.update({
@@ -70,22 +77,24 @@ export class RidesService {
     userId: string,
     dto: UpdatePositionDto
   ): Promise<Position> {
-    const member = await this.prisma.rideMember.findUnique({
-      where: {
-        rideId_userId: {
-          rideId: dto.rideId,
-          userId,
-        },
-      },
+    const code = dto.code.trim().toUpperCase();
+    const ride = await this.prisma.ride.findUnique({
+      where: { code },
+      include: { members: true },
     });
 
+    if (!ride || ride.status !== 'ACTIVE') {
+      throw new NotFoundException('Ride not found');
+    }
+
+    const member = ride.members.find((entry) => entry.userId === userId);
     if (!member) {
       throw new NotFoundException('Ride membership not found');
     }
 
     return this.prisma.position.create({
       data: {
-        rideId: dto.rideId,
+        rideId: ride.id,
         userId,
         ts: new Date(),
         latitude: dto.latitude,

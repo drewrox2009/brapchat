@@ -8,6 +8,7 @@ import {
 } from '@expo-google-fonts/space-grotesk';
 import { createClient, Session, User } from '@supabase/supabase-js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Linking } from 'react-native';
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -18,6 +19,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import { Room, RoomEvent } from 'livekit-client';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -96,19 +99,29 @@ export const App = () => {
     SpaceGrotesk_500Medium,
     SpaceGrotesk_600SemiBold,
   });
-  const [authMode, setAuthMode] = useState<AuthMode>('phone');
+  const [authMode, setAuthMode] = useState<AuthMode>('email');
   const [authValue, setAuthValue] = useState('');
   const [otp, setOtp] = useState('');
   const [session, setSession] = useState<Session | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authMessage, setAuthMessage] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [screenName, setScreenName] = useState('');
+  const [screenNameMessage, setScreenNameMessage] = useState('');
+  const [screenNameLoading, setScreenNameLoading] = useState(false);
   const [publicRides, setPublicRides] = useState<PublicRide[]>([]);
   const [rideError, setRideError] = useState<string | null>(null);
   const [locationStatus, setLocationStatus] = useState<string>('');
+  const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(
+    null
+  );
   const [rideCode, setRideCode] = useState('');
   const [rideLoading, setRideLoading] = useState(false);
   const [rideMessage, setRideMessage] = useState('');
+  const [activeRideCode, setActiveRideCode] = useState<string | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState('Not connected');
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const roomRef = useRef<Room | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(
     null
   );
@@ -140,9 +153,26 @@ export const App = () => {
       }
     );
 
+    const handleDeepLink = (url: string | null) => {
+      if (!url) {
+        return;
+      }
+      const match = url.match(/\/ride\/([A-Za-z0-9]+)/i);
+      if (match?.[1]) {
+        setRideCode(match[1]);
+        setRideMessage('Invite detected. Tap join to enter the ride.');
+      }
+    };
+
+    Linking.getInitialURL().then(handleDeepLink);
+    const linkSubscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
     return () => {
       isMounted = false;
       listener.subscription.unsubscribe();
+      linkSubscription.remove();
     };
   }, []);
 
@@ -186,7 +216,30 @@ export const App = () => {
               timeInterval: 5000,
               distanceInterval: 5,
             },
-            () => undefined
+            async (location: Location.LocationObject) => {
+              setCurrentLocation(location);
+              if (activeRideCode && session?.access_token) {
+                try {
+                  await fetch(`${apiBaseUrl}/rides/position`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                      code: activeRideCode,
+                      latitude: location.coords.latitude,
+                      longitude: location.coords.longitude,
+                      speed: location.coords.speed ?? undefined,
+                      heading: location.coords.heading ?? undefined,
+                      accuracy: location.coords.accuracy ?? undefined,
+                    }),
+                  });
+                } catch (error) {
+                  setRideMessage('Unable to send location updates.');
+                }
+              }
+            }
           );
       }
     };
@@ -196,7 +249,7 @@ export const App = () => {
     return () => {
       locationSubscription.current?.remove();
     };
-  }, []);
+  }, [activeRideCode, session?.access_token]);
 
   const handleSendCode = async () => {
     if (!authValue) {
@@ -262,6 +315,45 @@ export const App = () => {
     }
   };
 
+  const handleSetScreenName = async () => {
+    if (!screenName.trim()) {
+      setScreenNameMessage('Enter a screen name to continue.');
+      return;
+    }
+
+    if (!session?.access_token) {
+      setScreenNameMessage('Sign in before setting a screen name.');
+      return;
+    }
+
+    setScreenNameLoading(true);
+    setScreenNameMessage('');
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/screen-name`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ screenName: screenName.trim() }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        throw new Error(errorBody?.message ?? 'Unable to set screen name');
+      }
+
+      setScreenNameMessage('Screen name saved.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to set screen name.';
+      setScreenNameMessage(message);
+    } finally {
+      setScreenNameLoading(false);
+    }
+  };
+
   const handleCreateRide = async () => {
     if (!rideCode) {
       setRideMessage('Enter a ride code to create a room.');
@@ -290,6 +382,7 @@ export const App = () => {
         throw new Error('Unable to create ride');
       }
 
+      setActiveRideCode(rideCode.trim().toUpperCase());
       setRideMessage('Ride created.');
     } catch (error) {
       const message =
@@ -298,6 +391,69 @@ export const App = () => {
     } finally {
       setRideLoading(false);
     }
+  };
+
+  const handleJoinVoice = async () => {
+    if (!activeRideCode) {
+      setRideMessage('Join a ride before connecting voice.');
+      return;
+    }
+
+    if (!session?.access_token) {
+      setRideMessage('Sign in to connect voice.');
+      return;
+    }
+
+    setVoiceLoading(true);
+    setVoiceStatus('Requesting token...');
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/livekit/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          rideCode: activeRideCode,
+          participantName:
+            authUser?.email ?? authUser?.phone ?? 'brapchat-rider',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Unable to get voice token');
+      }
+
+      const data = (await response.json()) as { token: string };
+      const room = new Room();
+      roomRef.current = room;
+
+      room.on(RoomEvent.Disconnected, () => {
+        setVoiceStatus('Disconnected');
+      });
+
+      const livekitUrl = process.env.EXPO_PUBLIC_LIVEKIT_URL ?? '';
+      if (!livekitUrl) {
+        throw new Error('Missing LiveKit URL');
+      }
+
+      await room.connect(`wss://${livekitUrl}`, data.token);
+
+      setVoiceStatus('Connected');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to join voice.';
+      setVoiceStatus(message);
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
+  const handleLeaveVoice = async () => {
+    await roomRef.current?.disconnect();
+    roomRef.current = null;
+    setVoiceStatus('Disconnected');
   };
 
   const handleJoinRide = async () => {
@@ -321,13 +477,14 @@ export const App = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ rideId: rideCode }),
+        body: JSON.stringify({ code: rideCode }),
       });
 
       if (!response.ok) {
         throw new Error('Unable to join ride');
       }
 
+      setActiveRideCode(rideCode.trim().toUpperCase());
       setRideMessage('Joined ride.');
     } catch (error) {
       const message =
@@ -369,6 +526,13 @@ export const App = () => {
             <Text style={styles.sectionSubtitle}>
               Open-mic voice, live positions, no headset drama.
             </Text>
+            {activeRideCode ? (
+              <Text style={styles.noticeText}>
+                Active ride: {activeRideCode}
+              </Text>
+            ) : (
+              <Text style={styles.noticeText}>No active ride yet.</Text>
+            )}
             <TextInput
               placeholder="Ride code"
               placeholderTextColor={colors.muted}
@@ -506,6 +670,68 @@ export const App = () => {
           </View>
 
           <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Screen name</Text>
+            <Text style={styles.sectionSubtitle}>
+              Set a unique handle before joining rides.
+            </Text>
+          </View>
+
+          <View style={styles.authCard}>
+            <View style={styles.inputStack}>
+              <TextInput
+                placeholder="Screen name"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+                value={screenName}
+                onChangeText={setScreenName}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleSetScreenName}
+              >
+                {screenNameLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Save screen name</Text>
+                )}
+              </TouchableOpacity>
+              {screenNameMessage ? (
+                <Text style={styles.noticeText}>{screenNameMessage}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Voice</Text>
+            <Text style={styles.sectionSubtitle}>
+              Join the LiveKit room for this ride.
+            </Text>
+          </View>
+
+          <View style={styles.authCard}>
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleJoinVoice}
+              >
+                {voiceLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Join voice</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleLeaveVoice}
+              >
+                <Text style={styles.secondaryButtonText}>Leave voice</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.noticeText}>Status: {voiceStatus}</Text>
+          </View>
+
+          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Who’s riding</Text>
             <Text style={styles.sectionSubtitle}>Public rides near you.</Text>
           </View>
@@ -529,6 +755,40 @@ export const App = () => {
                 </View>
               )
             )}
+          </View>
+
+          <View style={styles.infoCard}>
+            <Text style={styles.sectionTitle}>Live location</Text>
+            <Text style={styles.sectionSubtitle}>
+              Your current position updates every 5 seconds.
+            </Text>
+            <View style={styles.mapWrapper}>
+              {currentLocation ? (
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: currentLocation.coords.latitude,
+                    longitude: currentLocation.coords.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                >
+                  <Marker
+                    coordinate={{
+                      latitude: currentLocation.coords.latitude,
+                      longitude: currentLocation.coords.longitude,
+                    }}
+                    title="You"
+                  />
+                </MapView>
+              ) : (
+                <View style={styles.mapPlaceholder}>
+                  <Text style={styles.sectionSubtitle}>
+                    Location {locationStatus || 'pending'}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={styles.infoCard}>
@@ -771,6 +1031,23 @@ const styles = StyleSheet.create({
     marginTop: 24,
     borderWidth: 1,
     borderColor: colors.line,
+  },
+  mapWrapper: {
+    marginTop: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceAlt,
+  },
+  map: {
+    width: '100%',
+    height: 220,
+  },
+  mapPlaceholder: {
+    height: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   infoGrid: {
     marginTop: 16,

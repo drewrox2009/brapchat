@@ -28,6 +28,15 @@ npx nx e2e api-e2e --testPathPattern=api-e2e/src/api/api.spec.ts
 npx nx e2e api-e2e --testNamePattern="should return a message"
 ```
 
+## LiveKit setup
+
+Set these env vars for the mobile app:
+- `EXPO_PUBLIC_LIVEKIT_URL` (example: `livekit.eww-pew.com`)
+
+Ensure the API has:
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+
 ## Prisma workflows
 
 ```sh

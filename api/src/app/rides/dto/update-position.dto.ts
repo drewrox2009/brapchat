@@ -1,8 +1,9 @@
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdatePositionDto {
   @IsString()
-  rideId: string;
+  @MinLength(4)
+  code: string;
 
   @IsNumber()
   latitude: number;
